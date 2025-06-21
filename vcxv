@@ -1,0 +1,167 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local localPlayer = Players.LocalPlayer
+
+local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
+local m1Remote = remotesFolder:WaitForChild("M1Request")
+
+local isSpamming = false
+local spamCountValue = 0
+
+-- Valeurs par défaut
+local clickDelay = 0.05       -- délai entre clics en rafale (50 ms)
+local burstCount = 5          -- nombre de clics par rafale
+local burstPause = 0.5        -- pause entre chaque rafale (en secondes)
+
+-- UI
+local screenGui = Instance.new("ScreenGui", localPlayer:WaitForChild("PlayerGui"))
+screenGui.Name = "M1BurstSpamGui"
+screenGui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame", screenGui)
+frame.Size = UDim2.new(0, 360, 0, 300)
+frame.Position = UDim2.new(0.5, -180, 0.5, -150)
+frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+frame.Active = true
+frame.Draggable = true
+
+local titleLabel = Instance.new("TextLabel", frame)
+titleLabel.Size = UDim2.new(1, 0, 0, 30)
+titleLabel.Position = UDim2.new(0, 0, 0, 5)
+titleLabel.BackgroundTransparency = 1
+titleLabel.TextColor3 = Color3.new(1, 1, 1)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 18
+titleLabel.Text = "M1 Burst Spam - Paramètres (ms et count)"
+
+local function createLabelAndBox(parent, yPos, labelText, defaultText)
+    local label = Instance.new("TextLabel", parent)
+    label.Size = UDim2.new(0, 160, 0, 25)
+    label.Position = UDim2.new(0, 10, 0, yPos)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 16
+    label.Text = labelText
+
+    local box = Instance.new("TextBox", parent)
+    box.Size = UDim2.new(0, 120, 0, 30)
+    box.Position = UDim2.new(0, 180, 0, yPos - 3)
+    box.Text = tostring(defaultText)
+    box.ClearTextOnFocus = false
+    box.Font = Enum.Font.Gotham
+    box.TextSize = 18
+    box.TextColor3 = Color3.new(1,1,1)
+    box.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+    box.PlaceholderText = "Valeur"
+    return box
+end
+
+local clickDelayBox = createLabelAndBox(frame, 40, "Délai entre clics (ms) :", clickDelay * 1000)
+local burstCountBox = createLabelAndBox(frame, 85, "Clics par rafale :", burstCount)
+local burstPauseBox = createLabelAndBox(frame, 130, "Pause entre rafales (ms) :", burstPause * 1000)
+
+local errorLabel = Instance.new("TextLabel", frame)
+errorLabel.Size = UDim2.new(1, -20, 0, 25)
+errorLabel.Position = UDim2.new(0, 10, 0, 170)
+errorLabel.BackgroundTransparency = 1
+errorLabel.TextColor3 = Color3.new(1, 0, 0)
+errorLabel.Font = Enum.Font.Gotham
+errorLabel.TextSize = 14
+errorLabel.Text = ""
+
+local toggleButton = Instance.new("TextButton", frame)
+toggleButton.Size = UDim2.new(0, 140, 0, 50)
+toggleButton.Position = UDim2.new(0.5, -70, 1, -70)
+toggleButton.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
+toggleButton.TextColor3 = Color3.new(1,1,1)
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.TextSize = 22
+toggleButton.Text = "Start"
+
+local spamCountLabel = Instance.new("TextLabel", frame)
+spamCountLabel.Size = UDim2.new(1, -20, 0, 25)
+spamCountLabel.Position = UDim2.new(0, 10, 0, 210)
+spamCountLabel.BackgroundTransparency = 1
+spamCountLabel.TextColor3 = Color3.new(1, 1, 1)
+spamCountLabel.Font = Enum.Font.Gotham
+spamCountLabel.TextSize = 14
+spamCountLabel.Text = "Spam count : 0"
+
+-- Fonction retry FireServer
+local function tryFireServerWithRetry(remote, arg, retries, delayBetween)
+    retries = retries or 3
+    delayBetween = delayBetween or 0.05
+    for i = 1, retries do
+        local success, err = pcall(function()
+            remote:FireServer(arg)
+        end)
+        if success then return true end
+        task.wait(delayBetween)
+    end
+    return false
+end
+
+local function startSpam()
+    if isSpamming then return end
+    isSpamming = true
+    spamCountValue = 0
+
+    spawn(function()
+        while isSpamming do
+            -- burst clics
+            for i = 1, burstCount do
+                if not isSpamming then break end
+                local fired = tryFireServerWithRetry(m1Remote, 2, 3, 0.03)
+                if fired then spamCountValue += 1 end
+                task.wait(clickDelay)
+            end
+            task.wait(burstPause)
+        end
+    end)
+
+    spawn(function()
+        while isSpamming do
+            spamCountLabel.Text = "Spam count : " .. spamCountValue
+            task.wait(0.5)
+        end
+        spamCountLabel.Text = "Spam count : 0"
+    end)
+end
+
+local function stopSpam()
+    isSpamming = false
+end
+
+toggleButton.MouseButton1Click:Connect(function()
+    if isSpamming then
+        stopSpam()
+        toggleButton.Text = "Start"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
+        errorLabel.Text = ""
+    else
+        local cd = tonumber(clickDelayBox.Text)
+        local bc = tonumber(burstCountBox.Text)
+        local bp = tonumber(burstPauseBox.Text)
+
+        if not cd then
+            errorLabel.Text = "Erreur : délai invalide."
+            return
+        elseif not bc or bc < 1 then
+            errorLabel.Text = "Erreur : clics par rafale >= 1."
+            return
+        elseif not bp or bp < 0 then
+            errorLabel.Text = "Erreur : pause >= 0 ms."
+            return
+        end
+
+        errorLabel.Text = ""
+        clickDelay = cd / 1000
+        burstCount = math.floor(bc)
+        burstPause = bp / 1000
+
+        startSpam()
+        toggleButton.Text = "Stop"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(160, 0, 0)
+    end
+end)
