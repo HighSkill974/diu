@@ -88,80 +88,33 @@ spamCountLabel.Font = Enum.Font.Gotham
 spamCountLabel.TextSize = 14
 spamCountLabel.Text = "Spam count : 0"
 
--- Fonction retry FireServer
-local function tryFireServerWithRetry(remote, arg, retries, delayBetween)
-    retries = retries or 3
-    delayBetween = delayBetween or 0.05
-    for i = 1, retries do
-        local success, err = pcall(function()
-            remote:FireServer(arg)
-        end)
-        if success then return true end
-        task.wait(delayBetween)
-    end
-    return false
-end
+-- AJOUT 1 : Bouton "Hide UI"
+local hideButton = Instance.new("TextButton", frame)
+hideButton.Size = UDim2.new(0, 100, 0, 30)
+hideButton.Position = UDim2.new(1, -110, 0, 5)
+hideButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+hideButton.TextColor3 = Color3.new(1, 1, 1)
+hideButton.Font = Enum.Font.Gotham
+hideButton.TextSize = 14
+hideButton.Text = "Hide UI"
 
-local function startSpam()
-    if isSpamming then return end
-    isSpamming = true
-    spamCountValue = 0
+-- AJOUT 2 : Carré pour réafficher l'UI
+local showUIButton = Instance.new("TextButton")
+showUIButton.Size = UDim2.new(0, 20, 0, 20)
+showUIButton.Position = UDim2.new(0, 10, 1, -30)
+showUIButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+showUIButton.BorderSizePixel = 0
+showUIButton.Text = ""
+showUIButton.Parent = screenGui
+showUIButton.Visible = false
 
-    spawn(function()
-        while isSpamming do
-            -- burst clics
-            for i = 1, burstCount do
-                if not isSpamming then break end
-                local fired = tryFireServerWithRetry(m1Remote, 2, 3, 0.03)
-                if fired then spamCountValue += 1 end
-                task.wait(clickDelay)
-            end
-            task.wait(burstPause)
-        end
-    end)
+-- Fonction d'affichage/masquage
+hideButton.MouseButton1Click:Connect(function()
+    frame.Visible = false
+    showUIButton.Visible = true
+end)
 
-    spawn(function()
-        while isSpamming do
-            spamCountLabel.Text = "Spam count : " .. spamCountValue
-            task.wait(0.5)
-        end
-        spamCountLabel.Text = "Spam count : 0"
-    end)
-end
-
-local function stopSpam()
-    isSpamming = false
-end
-
-toggleButton.MouseButton1Click:Connect(function()
-    if isSpamming then
-        stopSpam()
-        toggleButton.Text = "Start"
-        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
-        errorLabel.Text = ""
-    else
-        local cd = tonumber(clickDelayBox.Text)
-        local bc = tonumber(burstCountBox.Text)
-        local bp = tonumber(burstPauseBox.Text)
-
-        if not cd then
-            errorLabel.Text = "Erreur : délai invalide."
-            return
-        elseif not bc or bc < 1 then
-            errorLabel.Text = "Erreur : clics par rafale >= 1."
-            return
-        elseif not bp or bp < 0 then
-            errorLabel.Text = "Erreur : pause >= 0 ms."
-            return
-        end
-
-        errorLabel.Text = ""
-        clickDelay = cd / 1000
-        burstCount = math.floor(bc)
-        burstPause = bp / 1000
-
-        startSpam()
-        toggleButton.Text = "Stop"
-        toggleButton.BackgroundColor3 = Color3.fromRGB(160, 0, 0)
-    end
+showUIButton.MouseButton1Click:Connect(function()
+    frame.Visible = true
+    showUIButton.Visible = false
 end)
